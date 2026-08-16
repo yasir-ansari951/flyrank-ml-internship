@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="FlyRank ML Capstone — Refresh / Content Opportunity Scoring">
+<title>Refresh Opportunity Scoring — FlyRank ML Capstone</title>
+<style>
+:root{--ink:#13201a;--muted:#627068;--bg:#f4f7f4;--card:#fff;--line:#dce5df;--green:#236b54;--green2:#9bb9ab;--cream:#f8f1e4;--shadow:0 14px 40px rgba(25,50,38,.08)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.7}
+.container{max-width:1160px;margin:auto;padding:0 24px}.hero{background:linear-gradient(135deg,#10251c 0%,#1d5946 65%,#2c765d 100%);color:#fff;padding:26px 0 72px;position:relative;overflow:hidden}
+.hero:after{content:"";position:absolute;width:460px;height:460px;border:1px solid rgba(255,255,255,.13);border-radius:50%;right:-130px;top:-180px;box-shadow:0 0 0 70px rgba(255,255,255,.025),0 0 0 140px rgba(255,255,255,.018)}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:8px 0 46px}.brand{font-weight:800;letter-spacing:.02em}.tag{border:1px solid rgba(255,255,255,.25);padding:7px 12px;border-radius:999px;font-size:13px;color:#e7f3ed}
+.kicker{text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800;color:#b8dfce}.hero h1{font-size:clamp(2.7rem,7vw,5.8rem);line-height:.98;max-width:900px;margin:12px 0 20px;letter-spacing:-.055em}.hero p{font-size:1.18rem;max-width:760px;color:#d8e8e0}.hero .scope{display:inline-flex;gap:8px;align-items:center;margin-top:12px;padding:9px 13px;border-radius:10px;background:rgba(255,255,255,.09);font-size:14px}
+.nav{position:sticky;top:0;z-index:10;background:rgba(244,247,244,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}.nav .container{display:flex;gap:18px;overflow:auto}.nav a{padding:13px 0;color:var(--muted);text-decoration:none;white-space:nowrap;font-size:14px}.nav a:hover{color:var(--green)}
+section{padding:72px 0;border-bottom:1px solid var(--line)}h2{font-size:2.05rem;letter-spacing:-.03em;margin:0 0 16px}h3{font-size:1.25rem;margin-top:32px}.lead{font-size:1.16rem;color:#344139;max-width:860px}.eyebrow{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:28px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--shadow)}.num{font-size:2.2rem;font-weight:850;letter-spacing:-.04em}.label{font-size:13px;color:var(--muted);margin-top:2px}
+.split{display:grid;grid-template-columns:1.1fr .9fr;gap:22px;align-items:start}.panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:var(--shadow)}
+.callout{background:#e8f2ed;border-left:4px solid var(--green);padding:18px 20px;border-radius:10px;margin:22px 0}.warning{background:var(--cream);border-left:4px solid #a77932;padding:18px 20px;border-radius:10px;margin:22px 0}
+table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:#fff}th,td{padding:14px 15px;text-align:left;border-bottom:1px solid var(--line)}th{background:#eef3ef;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#516059}tr:last-child td{border-bottom:0}
+.metric-good{color:var(--green);font-weight:800}.metric-low{color:#9a5a22;font-weight:800}
+.figure{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;margin:22px 0;box-shadow:var(--shadow)}.figure img{width:100%;display:block}.caption{font-size:13px;color:var(--muted);padding:9px 5px 2px}
+.pills{display:flex;flex-wrap:wrap;gap:8px}.pill{padding:8px 11px;border-radius:999px;background:#edf3ef;color:#365044;font-size:13px}
+ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-inside:avoid;margin-bottom:10px}
+.footer{padding:50px 0 80px;color:var(--muted)}.footer a{color:var(--green)}
+.small{font-size:13px;color:var(--muted)}code{background:#edf1ee;padding:2px 5px;border-radius:5px}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.two-col{columns:1}}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.hero{padding-bottom:52px}.hero h1{font-size:2.7rem}}
+</style>
+</head>
+<body>
+<header class="hero">
+<div class="container">
+<div class="topbar"><div class="brand">FLYRANK · ML CAPSTONE</div><div class="tag">Refresh / Content Opportunity Scoring</div></div>
+<div class="kicker">Search intelligence · transparent modeling · grouped validation</div>
+<h1>Which content should a reviewer inspect first?</h1>
+<p>A practical, public-safe study of whether historical search and analytics signals can support a ranked content-review queue — and whether a Decision Tree actually improves on a transparent Week-4 baseline.</p>
+<div class="scope">Decision-support only · human review required · no causal claims</div>
+</div>
+</header>
+
+<nav class="nav"><div class="container">
+<a href="#abstract">Abstract</a><a href="#question">Question</a><a href="#data">Data</a><a href="#method">Method</a><a href="#results">Results</a><a href="#limits">Limits</a><a href="#actions">Actions</a><a href="#repro">Reproducibility</a>
+</div></nav>
+
+<main>
+<section id="abstract"><div class="container">
+<div class="eyebrow">01 · Abstract</div><h2>A model should earn its complexity.</h2>
+<p class="lead">This study investigates whether historical search-performance signals can support content prioritization for potential refresh review. A transparent rule-based baseline was developed first, followed by an audited Decision Tree using historical search and analytics signals. The model was evaluated with grouped validation by client and compared with the baseline on the same held-out groups. The measured results favored the simple baseline: 95.35% accuracy and 94.16% F1 versus 57.62% accuracy and 2.38% F1 for the audited tree. The resulting action queue is therefore framed as directional decision-support for human review, not as evidence that a refresh will cause improved search performance.</p>
+</div></section>
+
+<section id="question"><div class="container">
+<div class="eyebrow">02 · Research question</div><h2>Turn a large content inventory into a review order.</h2>
+<div class="split"><div>
+<p class="lead">The selected capstone lane is <strong>Refresh / Content Opportunity Scoring</strong>.</p>
+<p>The practical decision is simple: <strong>which content items should a reviewer inspect first?</strong> The system is intentionally not asked to decide whether a page must be refreshed, rewritten, deleted, or expected to gain traffic.</p>
+</div><div class="panel"><strong>What success means</strong><ul><li>Transparent assumptions</li><li>Leakage-controlled features</li><li>Grouped validation</li><li>Comparable baseline</li><li>Human-readable actions</li></ul></div></div>
+</div></section>
+
+<section id="data"><div class="container">
+<div class="eyebrow">03 · Data</div><h2>Historical search + analytics signals</h2>
+<div class="grid">
+<div class="card"><div class="num">10,000</div><div class="label">working sample rows</div></div>
+<div class="card"><div class="num">12</div><div class="label">audited model features</div></div>
+<div class="card"><div class="num">20%</div><div class="label">held-out grouped test share</div></div>
+<div class="card"><div class="num">0</div><div class="label">client overlap in split</div></div>
+</div>
+<div class="split">
+<div><p>The capstone uses the FlyRank ML Internship dataset and the <code>fact_content_daily_performance</code> workflow. The feature set includes GSC impressions and analytics measures such as pageviews, sessions, users, engaged sessions, channel sessions, AI sessions, and scroll events.</p><p>The working sample is explicitly described in the notebook as 10,000 rows rather than the complete warehouse.</p></div>
+<div class="panel"><strong>Public-safe exclusions</strong><div class="pills"><span class="pill">client identifier</span><span class="pill">content identifier</span><span class="pill">report date</span><span class="pill">target</span><span class="pill">GSC clicks</span><span class="pill">average position</span></div></div>
+</div>
+<div class="warning"><strong>Date-window note:</strong> the uploaded capstone displays a sample date (2025-01-27), but does not expose a verified full date-window summary. This paper deliberately does not invent an end date. The notebook remains the source of truth for the exact run configuration.</div>
+</div></section>
+
+<section id="method"><div class="container">
+<div class="eyebrow">04 · Methodology</div><h2>Baseline first. Model second. Audit both.</h2>
+<div class="split">
+<div class="panel"><h3>Proxy target</h3><p>The Week-5 proxy marks observations where average position is above 20 and clicks are below 5. This is a constructed proxy, not a human-verified “needs refresh” label.</p><h3>Audited model</h3><p>A Decision Tree classifier with <code>max_depth=5</code> uses 12 historical search/analytics features.</p></div>
+<div class="panel"><h3>Grouped validation</h3><p><code>GroupShuffleSplit</code> holds out 20% of client groups. The notebook checks client overlap and uses the same held-out groups for baseline and model comparison.</p><h3>Leakage control</h3><p>The two variables that directly construct the proxy target — GSC clicks and average position — are excluded from the audited model.</p></div>
+</div>
+<div class="callout"><strong>Why the audit matters:</strong> allowing a model to see variables that directly define its target can make performance look stronger than the underlying predictive evidence. The capstone explicitly corrects for that issue.</div>
+</div></section>
+
+<section id="results"><div class="container">
+<div class="eyebrow">05 · Results</div><h2>The transparent baseline wins.</h2>
+<div class="grid">
+<div class="card"><div class="num metric-good">95.35%</div><div class="label">baseline accuracy</div></div>
+<div class="card"><div class="num metric-low">57.62%</div><div class="label">audited tree accuracy</div></div>
+<div class="card"><div class="num metric-good">94.16%</div><div class="label">baseline F1</div></div>
+<div class="card"><div class="num metric-low">2.38%</div><div class="label">audited tree F1</div></div>
+</div>
+<div class="figure"><img src="work/figures/model_comparison.svg" alt="Grouped test comparison of baseline and audited Decision Tree"></div>
+<table><thead><tr><th>Method</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead>
+<tbody><tr><td>Week 4 baseline rule</td><td>95.35%</td><td>100.00%</td><td>88.96%</td><td>94.16%</td></tr>
+<tr><td>Audited Decision Tree</td><td>57.62%</td><td>39.47%</td><td>1.23%</td><td>2.38%</td></tr></tbody></table>
+<h3>Where the tree failed</h3>
+<div class="figure"><img src="work/figures/confusion_matrix.svg" alt="Confusion matrix for the audited Decision Tree"></div>
+<p class="lead">The held-out confusion matrix contains 1,208 false negatives and only 15 true positives. That error pattern is consistent with the measured 1.23% recall and 2.38% F1: the tree missed most proxy-positive cases.</p>
+<div class="callout"><strong>Interpretation:</strong> under this grouped validation design, the extra model complexity did not improve the tested proxy task. The transparent baseline remains the stronger measured benchmark.</div>
+</div></section>
+
+<section id="limits"><div class="container">
+<div class="eyebrow">06 · Limitations</div><h2>What this study does — and does not — show.</h2>
+<div class="split">
+<div><h3>Supported</h3><ul><li>The baseline and tree can be compared on the same grouped test set.</li><li>The audited tree performed materially below the baseline in this experiment.</li><li>The queue can be used as directional review prioritization.</li><li>Leakage risks from target-defining fields were explicitly addressed.</li></ul></div>
+<div><h3>Not supported</h3><ul><li>A claim that refreshing content will cause better rankings.</li><li>A claim about Google's ranking algorithm.</li><li>A claim that the queue predicts refresh success.</li><li>Automatic publishing, rewriting, deletion, or pruning.</li></ul></div>
+</div>
+<div class="warning"><strong>Honest framing:</strong> words such as <em>observed</em>, <em>measured</em>, <em>directional</em>, <em>associated</em>, and <em>decision-support</em> are preferred throughout this artifact.</div>
+</div></section>
+
+<section id="actions"><div class="container">
+<div class="eyebrow">07 · Ranked action playbook</div><h2>Use the queue to focus human attention.</h2>
+<div class="split">
+<div>
+<p class="lead">The capstone exports a ranked queue with an opportunity score, action label, and reason code. The top-ranked observations shown in the notebook use <strong>REVIEW_REFRESH</strong> with the reason code <strong>LOW_CLICKS_POOR_POSITION</strong>.</p>
+<table><thead><tr><th>Action</th><th>Reason code</th><th>Use</th></tr></thead>
+<tbody><tr><td><strong>REVIEW_REFRESH</strong></td><td>LOW_CLICKS_POOR_POSITION</td><td>Inspect first</td></tr>
+<tr><td><strong>MONITOR</strong></td><td>MONITOR_SIGNAL</td><td>Watch for context</td></tr>
+<tr><td><strong>PROTECT</strong></td><td>PROTECT_STRONG_SIGNAL</td><td>Avoid unnecessary change</td></tr></tbody></table>
+</div>
+<div class="panel"><h3>Human review checklist</h3><ol><li>Confirm search demand and data quality.</li><li>Check current intent and content fit.</li><li>Consider seasonality and recent editorial changes.</li><li>Assess business importance.</li><li>Only then decide whether a refresh is appropriate.</li></ol></div>
+</div>
+<div class="callout"><strong>No-go list:</strong> do not automatically publish, rewrite, delete, prune, or claim guaranteed performance improvement from a queue score.</div>
+</div></section>
+
+<section id="repro"><div class="container">
+<div class="eyebrow">08 · Reproducibility</div><h2>A paper backed by a notebook trail.</h2>
+<div class="panel">
+<p>The capstone sits on the weekly workflow:</p>
+<ul class="two-col">
+<li><code>w04_baseline_score.ipynb</code> — transparent baseline</li>
+<li><code>w05_model.ipynb</code> — initial model comparison</li>
+<li><code>w06_validation_audit.ipynb</code> — validation + leakage audit</li>
+<li><code>w07_action_playbook.ipynb</code> — action playbook</li>
+<li><code>capstone.ipynb</code> — final research workflow</li>
+</ul>
+<p>The capstone also regenerates <code>work/outputs/capstone_ranked_action_queue.csv</code> and <code>work/outputs/capstone_metrics.json</code>, and creates reusable figures under <code>work/figures/</code>.</p>
+</div>
+</div></section>
+</main>
+
+<footer class="footer"><div class="container">
+<div class="eyebrow">Acknowledgments & data credit</div>
+<h2>Built on the FlyRank ML Internship dataset.</h2>
+<p>Thank you to the FlyRank mentors, team, and learning environment for providing a practical setting for working with search and analytics data.</p>
+<p><a href="https://flyrank.ai" rel="noopener noreferrer">FlyRank</a> · Machine Learning Internship Capstone</p>
+<p class="small">This research artifact reports measured results from a specific proxy task and validation design. It is intended for transparent learning and decision-support, not production automation or causal inference.</p>
+</div></footer>
+</body>
+</html>
