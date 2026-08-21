@@ -1,12 +1,12 @@
 # Capstone Report — Refresh / Content Opportunity Scoring
 
-- **Author:** Yasir Ansari
+- **Author:** Abu Yasir
 - **Lane:** Refresh / Content Opportunity Scoring
 - **Repository:** https://github.com/yasir-ansari951/flyrank-ml-internship
 - **Dataset:** FlyRank ML Internship dataset
-- **Table:** `fact_content_daily_performance`
-- **Working sample:** 10,000 rows
+- **Working sample:** 10,000 rows, shuffled (`seed=42`) before sampling
 - **Random state:** 42
+- **Revision note:** this report was revised after a self-audit found and fixed a target-leakage bug and an unshuffled-sample bug in the original run. See **Section 5, Audit Trail**, for the full record.
 
 ## 1. Problem Framing
 
@@ -34,9 +34,9 @@ The purpose of this project is therefore not to automate editorial judgment. Ins
 
 ### Unit of Analysis
 
-The working unit is a historical content-performance observation from the FlyRank `fact_content_daily_performance` table.
+The working unit is a historical content-performance observation from the FlyRank `fact_content_daily_performance` table (78.8M rows in the full warehouse).
 
-The final capstone uses a working sample of **10,000 rows**.
+The final capstone uses a working sample of **10,000 rows**, drawn with `.shuffle(seed=42)` before sampling so the sample is not dominated by whatever client or date happens to sort first in storage.
 
 ### Output
 
@@ -44,9 +44,10 @@ The project produces:
 
 - a proxy target;
 - a transparent baseline;
-- a Decision Tree model;
-- grouped validation results;
-- a leakage audit;
+- a Decision Tree model (plain and class-weighted);
+- a Random Forest model (class-weighted, with threshold tuning);
+- grouped validation results, with a minimum-client-count guard;
+- a leakage audit, including a quantitative trip-wire in addition to the structural column check;
 - error examples;
 - feature-importance information;
 - a ranked opportunity queue;
@@ -86,9 +87,15 @@ RANDOM_STATE = 42
 SAMPLE_SIZE = 10000
 ```
 
+```python
+sample = ds["train"].shuffle(seed=RANDOM_STATE).select(range(SAMPLE_SIZE)).to_pandas()
+```
+
+The shuffled sample contains **69 unique clients**. This number matters: an earlier, unshuffled version of this exact pipeline (`.select(range(10000))` without `.shuffle()` first) collapsed the sample to roughly 3 unique clients, which made grouped-by-client validation nearly meaningless. See Section 5 for the full record.
+
 ### Audited Model Features
 
-The exact feature list used by the audited model is:
+The exact feature list used by every audited model is:
 
 ```text
 gsc_impressions
@@ -122,6 +129,15 @@ Otherwise:
 target = 0
 ```
 
+In the shuffled 10,000-row sample, this produces:
+
+| Target | Count | Share |
+|---|---:|---:|
+| 0 (not a candidate) | 9,018 | 90.2% |
+| 1 (candidate) | 982 | 9.8% |
+
+This is a real, moderate class imbalance (roughly 9:1), and it directly shaped the results in Section 6 — an unweighted model can score ~90% accuracy by predicting the majority class for every row.
+
 This target is explicitly a **proxy**. It is not a human-verified label stating that a content item actually needs a refresh, and it does not measure whether a refresh would subsequently succeed.
 
 ### Target-Defining Fields
@@ -133,7 +149,7 @@ gsc_avg_position
 gsc_clicks
 ```
 
-Therefore, they are deliberately excluded from the audited Decision Tree feature set.
+Therefore, they are deliberately excluded from every audited model's feature set — enforced programmatically from a single `TARGET_DEFINING_FIELDS` variable that also builds the target, so the exclusion list cannot silently drift out of sync with the target formula the way it did in the original run (Section 5).
 
 ### Identifiers
 
@@ -150,7 +166,7 @@ content_hash_id
 
 ### Leakage Audit
 
-The final audit explicitly excludes:
+The audit excludes the following fields structurally:
 
 ```text
 client_hash_id
@@ -170,6 +186,8 @@ gsc_avg_position
 | `gsc_clicks` | EXCLUDED | Direct target-defining signal |
 | `gsc_avg_position` | EXCLUDED | Direct target-defining signal |
 
+Beyond the structural check, a **quantitative trip-wire** trains a single-feature model per candidate feature and compares its accuracy against the dataset's majority-class baseline (90.2%) — flagging a feature only if it clearly beats that baseline *and* achieves non-trivial recall on the minority class. This catches leakage that a hand-maintained exclusion list might miss, and — importantly — does not falsely flag ordinary features just because they match the majority-class rate (see Section 5 for why the first version of this check needed a fix).
+
 ### Public Safety
 
 The paper and report do not reproduce client names, private queries, credentials, private domains, or other client-identifying information.
@@ -186,9 +204,7 @@ The project first established a transparent rule-based baseline.
 
 The baseline is intentionally simple so that its reasoning can be understood and inspected directly.
 
-In the final capstone comparison, the baseline is applied to the same held-out grouped test set used to evaluate the Decision Tree.
-
-The baseline rule used in the final comparison is:
+In the final capstone comparison, the baseline is applied to the same held-out grouped test set used to evaluate every model.
 
 ```python
 baseline_pred = (
@@ -197,35 +213,37 @@ baseline_pred = (
 ).astype(int)
 ```
 
-### Baseline Results
+### Baseline Results (corrected pipeline)
 
 | Metric | Week-4 Baseline |
 |---|---:|
-| Accuracy | **95.35%** |
+| Accuracy | **98.99%** |
 | Precision | **100.00%** |
-| Recall | **88.96%** |
-| F1 | **94.16%** |
+| Recall | **72.00%** |
+| F1 | **83.72%** |
 
-A machine-learning model should not automatically replace a simple rule. The baseline provides a transparent reference point.
+A machine-learning model should not automatically replace a simple rule. The baseline provides a transparent reference point — and, as shown in Section 6, it remains the strongest measured result even after every model fix applied in this revision.
 
 ---
 
 ## 4. Model / Analysis
 
-### Model
+### Models Compared
 
-The audited model is a **Decision Tree Classifier** with:
+Four learned variants are compared against the baseline, to separate two distinct questions: *"does removing leakage change the result?"* and *"does addressing class imbalance change the result?"*
 
-```text
-max_depth = 5
-random_state = 42
-```
+| Model | Configuration |
+|---|---|
+| Decision Tree (plain) | `max_depth=5`, `random_state=42` |
+| Decision Tree (class-weighted) | `max_depth=5`, `class_weight="balanced"`, `random_state=42` |
+| Random Forest (class-weighted) | `n_estimators=300`, `max_depth=8`, `class_weight="balanced"`, `random_state=42` |
+| Random Forest (tuned threshold) | Same as above, with the classification threshold swept via `precision_recall_curve` and set to maximize F1 |
 
-The model is relatively interpretable and can represent nonlinear relationships while remaining simple enough for an audit.
+All four use the identical audited feature set — differences in results isolate the effect of class weighting and threshold tuning, not a change in features.
 
 ### Exact Features
 
-The Decision Tree uses:
+Every model uses:
 
 ```text
 gsc_impressions
@@ -244,7 +262,7 @@ scroll_events
 
 ### Deliberately Excluded Features
 
-The Decision Tree does not use:
+No model uses:
 
 ```text
 gsc_clicks
@@ -257,7 +275,35 @@ because the first two directly define the proxy target and the identifiers are u
 
 ---
 
-## 5. Evaluation
+## 5. Audit Trail — What Was Wrong, and How It Was Found and Fixed
+
+In the interest of an honest, reproducible capstone, three issues that inflated or distorted earlier results are documented here rather than silently corrected.
+
+### 5.1 Target Leakage (found in an earlier run of `w05_model.ipynb` / `w06_validation_audit.ipynb`)
+
+**Symptom:** `gsc_clicks` and `gsc_avg_position` were used to *build* the proxy target, but were also left in the *feature list* given to the model. The Decision Tree scored a suspicious **100% accuracy, precision, recall, and F1**, and its feature-importance output showed `gsc_avg_position` at exactly 1.0 with every other feature at 0.0 — a textbook leakage signature.
+
+**Root cause:** an earlier leakage-check notebook (Week 3) marked both fields "safe" before any target existed. That judgement was correct at the time, but was never revisited once the target was defined using those same fields in Week 5.
+
+**Fix:** `TARGET_DEFINING_FIELDS` is now defined once and used both to build the target and to filter the feature list, so the two cannot drift apart again.
+
+### 5.2 Unshuffled Sampling (found in `w05_model.ipynb`, `w06_validation_audit.ipynb`, and an earlier version of `capstone.ipynb`)
+
+**Symptom:** `ds["train"].select(range(10000))` without a preceding `.shuffle()` call drew the sample from the front of the dataset's storage order. This collapsed the working sample to roughly **3 unique clients**, and a grouped train/test split left only **1 client** in the test set — meaning "grouped validation" was, in practice, evaluating on a single client's idiosyncratic data rather than testing generalization across clients.
+
+**Fix:** `.shuffle(seed=42)` is now applied before `.select()`, and the pipeline asserts a minimum client count (≥20 clients in-sample, ≥5 clients per side of the grouped split) before trusting any downstream metric. The corrected sample contains 69 unique clients; the grouped test split contains 14.
+
+### 5.3 A Miscalibrated Leakage Trip-Wire (found while re-auditing after fix 5.1 and 5.2)
+
+**Symptom:** while adding the quantitative leakage trip-wire described in Section 2, an early version flagged *every single feature* as "suspiciously predictive" at an identical accuracy of 0.902.
+
+**Root cause:** the trip-wire compared each feature's single-feature accuracy against a fixed absolute threshold (0.90), without accounting for class imbalance. On a 90.2%-majority target, a shallow tree trained on almost any feature — including an uninformative one — will default to predicting the majority class for every row, landing at exactly the base rate (0.902). This is not leakage; it's an artifact of imbalance.
+
+**Fix:** the trip-wire now compares each feature's accuracy against the dataset's actual majority-class baseline, and additionally requires the feature to achieve non-trivial recall on the minority class before it is flagged. Re-run with this fix, the audit correctly reports **PASS** for the corrected feature set.
+
+---
+
+## 6. Evaluation
 
 ### Validation Design
 
@@ -269,73 +315,66 @@ random_state = 42
 group = client_hash_id
 ```
 
-The client-overlap check returns:
-
-**0 overlapping clients**
-
-### Model Results
-
-| Metric | Audited Decision Tree |
-|---|---:|
-| Accuracy | **57.62%** |
-| Precision | **39.47%** |
-| Recall | **1.23%** |
-| F1 | **2.38%** |
-
-### Baseline vs Model
-
-| Metric | Week-4 Baseline | Audited Decision Tree |
+| | Rows | Unique clients |
 |---|---:|---:|
-| Accuracy | **95.35%** | **57.62%** |
-| Precision | **100.00%** | **39.47%** |
-| Recall | **88.96%** | **1.23%** |
-| F1 | **94.16%** | **2.38%** |
+| Training | 9,306 | 55 |
+| Testing | 694 | 14 |
 
-Both methods were evaluated on the same grouped held-out observations.
+**Client overlap: 0**
 
-### Confusion Matrix
+### Model Comparison (corrected pipeline)
+
+| Method | Accuracy | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Week-4 baseline rule | **98.99%** | **100.00%** | 72.00% | **83.72%** |
+| Decision Tree (plain) | 96.40% | 0.00% | 0.00% | 0.00% |
+| Decision Tree (class-weighted) | 87.03% | 21.74% | **100.00%** | 35.71% |
+| Random Forest (class-weighted) | 87.75% | 22.73% | **100.00%** | 37.04% |
+| Random Forest (tuned threshold = 0.679) | — | 25.50% | **100.00%** | 40.74% |
+
+All five rows are evaluated on the identical grouped held-out test set (694 rows, 14 clients).
+
+### Confusion Matrix — Best Model (Week-4 Baseline)
 
 | | Predicted 0 | Predicted 1 |
 |---|---:|---:|
-| Actual 0 | 1,659 | 23 |
-| Actual 1 | 1,208 | 15 |
+| Actual 0 | 669 | 0 |
+| Actual 1 | 7 | 18 |
 
-- True negatives: **1,659**
-- False positives: **23**
-- False negatives: **1,208**
-- True positives: **15**
+- True negatives: **669**
+- False positives: **0**
+- False negatives: **7**
+- True positives: **18**
 
-The dominant error was false negatives.
+### Confusion Matrix Pattern — Plain Decision Tree
+
+The unweighted Decision Tree predicted class 0 for every row in the test set (0 true positives, 25 false negatives out of 25 actual positives) — the model defaulted entirely to the majority class, which explains its 96.4% accuracy despite 0% recall and 0% F1.
 
 ### Interpretation
 
-The measured result does not support the claim that the Decision Tree is better than the baseline.
+Two separate findings emerge once the audit fixes in Section 5 are applied:
 
-Instead, the evidence supports the simpler baseline for this particular proxy target, feature set, working sample, Decision Tree configuration, and grouped validation design.
+1. **Leakage removal changed the result correctly.** Once `gsc_clicks`/`gsc_avg_position` are genuinely excluded (not just claimed to be), no model — including the plain Decision Tree — reaches anywhere near the earlier 100% score. This confirms the earlier result was leakage, not genuine model skill.
+2. **Class imbalance, not weak features, explains the plain tree's 0% recall.** Adding `class_weight="balanced"` and, separately, tuning the classification threshold on Random Forest's probabilities, both **fully recovered recall to 100%** — every true refresh-candidate page was caught by the weighted/tuned models. The audited features therefore do carry usable minority-class signal; a plain, unweighted shallow tree simply wasn't using it.
+3. **On F1, the simple baseline still wins.** The cost of recovering 100% recall in the learned models is precision: only 21.7%–25.5% of the pages they flagged were true positives, versus 100% for the rule-based baseline. F1, which balances both, favors the baseline (83.72%) over every learned variant (35.7%–40.7%).
 
-This is a valid negative result.
-
----
-
-## 6. Interpretation
-
-The strongest measured finding is:
-
-> The transparent baseline outperformed the audited Decision Tree on the same grouped held-out test set.
-
-The baseline measured **95.35% accuracy and 94.16% F1**.
-
-The audited Decision Tree measured **57.62% accuracy and 2.38% F1**.
-
-The Decision Tree feature-importance chart is descriptive. It should not be interpreted as evidence that a feature causes search rankings.
-
-A feature can be useful to the model without being a causal ranking factor.
-
-The failure to beat the baseline demonstrates why a strong transparent baseline matters.
+This is a valid, and now leakage-free, negative result for F1 — but not a uniformly negative one. Whether the baseline or a balanced/tuned model is preferable depends on which mistake costs the team more: missing a real refresh candidate, or asking reviewers to check extra false alarms.
 
 ---
 
-## 7. Recommendation
+## 7. Interpretation
+
+The strongest measured findings, after the audit and fixes documented in Section 5, are:
+
+> The transparent baseline outperforms every tested learned model on F1 (83.72% vs. a best of 40.74% for a threshold-tuned Random Forest), on the same grouped, leakage-audited, properly-shuffled held-out test set.
+
+> Class weighting and threshold tuning fully recover recall to 100% in the learned models — confirming that the audited features carry real, if limited, independent predictive signal for this proxy target, and that the plain tree's earlier 0% recall was a class-imbalance artifact rather than a sign the features are useless.
+
+The Decision Tree / Random Forest feature-importance output remains descriptive. It should not be interpreted as evidence that a feature causes search rankings. A feature can be useful to a model without being a causal ranking factor.
+
+---
+
+## 8. Recommendation
 
 The Week-7 action playbook converts observed signals into a practical content-review workflow.
 
@@ -427,13 +466,13 @@ Editorial decision
 
 ---
 
-## 8. Monitoring / Retrain Triggers
+## 9. Monitoring / Retrain Triggers
 
 Potential monitoring triggers include:
 
 - major changes in the underlying data distribution;
 - changes in search or analytics instrumentation;
-- substantial changes in class balance;
+- substantial changes in class balance (the current 90.2%/9.8% split materially shapes every result above; a shift here should trigger re-evaluation);
 - deterioration in precision;
 - deterioration in recall;
 - deterioration in F1;
@@ -443,20 +482,21 @@ Potential monitoring triggers include:
 
 A future model should be re-evaluated when the underlying data changes materially, the proxy target changes, new features become available, the editorial decision changes, performance is re-measured on a newer validation period, or the baseline changes.
 
-The baseline should remain part of future evaluation.
+The baseline should remain part of future evaluation. Any future re-run should also re-verify the client count in the shuffled sample and re-run the quantitative leakage trip-wire described in Sections 2 and 5 before trusting new numbers.
 
 ---
 
-## 9. Paper Artifacts
+## 10. Paper Artifacts
 
 The capstone generates reusable figures for the research paper:
 
-1. Baseline vs audited model performance
-2. Opportunity score distribution
-3. Reason-code distribution
-4. Search impressions vs clicks
-5. Top-20 ranked opportunities
-6. Audited Decision Tree feature importance
+1. Baseline vs. model comparison (all five methods)
+2. Precision/Recall/F1 vs. decision threshold (Random Forest tuning curve)
+3. Opportunity score distribution
+4. Reason-code distribution
+5. Search impressions vs. clicks
+6. Top-20 ranked opportunities
+7. Feature importance (leakage-free)
 
 Reusable figures are stored under:
 
@@ -464,18 +504,9 @@ Reusable figures are stored under:
 work/figures/
 ```
 
-The capstone creates:
-
-```text
-work/figures/opportunity_score_distribution.png
-work/figures/reason_code_distribution.png
-work/figures/impressions_vs_clicks.png
-work/figures/top20_opportunities.png
-```
-
 ---
 
-## 10. Ranked Action Queue
+## 11. Ranked Action Queue
 
 The capstone builds an auditable queue containing:
 
@@ -497,20 +528,22 @@ The queue is a prioritization artifact, not a production content-management syst
 
 ---
 
-## 11. Reproducibility
+## 12. Reproducibility
 
 ### Repository
 
 https://github.com/yasir-ansari951/flyrank-ml-internship
 
-### Weekly Notebooks
+### Weekly Notebooks (revised)
 
 ```text
-work/notebooks/w04_baseline_score.ipynb
-work/notebooks/w05_model.ipynb
-work/notebooks/w06_validation_audit.ipynb
-work/notebooks/w07_action_playbook.ipynb
-work/notebooks/capstone.ipynb
+work/notebooks/w03_feature_leakage_check.ipynb   (leakage check made conditional on target definition)
+work/notebooks/w04_baseline_score.ipynb          (unchanged)
+work/notebooks/w05_model.ipynb                   (target-defining fields excluded programmatically)
+work/notebooks/w06_validation_audit.ipynb        (shuffle fix, client-count guard, corrected trip-wire)
+work/notebooks/w07_action_playbook.ipynb         (unchanged — already shuffled correctly)
+work/notebooks/capstone.ipynb                    (final: shuffled sample, leakage-free features,
+                                                   class-weighted models, threshold tuning)
 ```
 
 ### Data Access
@@ -531,10 +564,27 @@ RANDOM_STATE = 42
 SAMPLE_SIZE = 10000
 ```
 
-Decision Tree:
+Decision Tree (plain):
 
 ```text
 max_depth = 5
+random_state = 42
+```
+
+Decision Tree (balanced):
+
+```text
+max_depth = 5
+class_weight = "balanced"
+random_state = 42
+```
+
+Random Forest (balanced):
+
+```text
+n_estimators = 300
+max_depth = 8
+class_weight = "balanced"
 random_state = 42
 ```
 
@@ -545,6 +595,8 @@ GroupShuffleSplit
 test_size = 0.20
 random_state = 42
 groups = client_hash_id
+minimum_clients_in_sample = 20   # assertion added after the audit trail in Section 5
+minimum_clients_per_split_side = 5
 ```
 
 ### Outputs
@@ -561,25 +613,23 @@ work/outputs/capstone_metrics.json
 1. Clone the repository.
 2. Obtain permitted FlyRank dataset access.
 3. Provide the Hugging Face token through the notebook environment.
-4. Run the capstone notebook.
-5. Load the 10,000-row working sample.
-6. Construct the proxy target.
-7. Apply the audited feature list.
-8. Create the grouped train/test split.
-9. Check client overlap.
-10. Train the Decision Tree.
-11. Evaluate the Decision Tree.
-12. Evaluate the baseline on the same test set.
-13. Inspect the confusion matrix and errors.
-14. Run the leakage audit.
-15. Generate feature importance.
-16. Generate the action queue.
-17. Generate the paper figures.
-18. Export the metrics receipt and queue.
+4. Load the dataset and **shuffle before sampling**.
+5. Assert the sample contains at least 20 unique clients before proceeding.
+6. Construct the proxy target and derive the excluded-feature list from the same `TARGET_DEFINING_FIELDS` variable.
+7. Run the structural leakage check and the quantitative (imbalance-aware) trip-wire.
+8. Create the grouped train/test split; assert at least 5 clients on each side; check zero client overlap.
+9. Train the baseline, plain Decision Tree, class-weighted Decision Tree, class-weighted Random Forest.
+10. Tune the Random Forest's decision threshold via `precision_recall_curve`, optimizing F1.
+11. Evaluate all five methods on the identical held-out set.
+12. Inspect the confusion matrix and errors for the best-F1 method.
+13. Generate feature importance.
+14. Generate the action queue.
+15. Generate the paper figures.
+16. Export the metrics receipt and queue.
 
 ---
 
-## 12. Limitations & Honest Framing
+## 13. Limitations & Honest Framing
 
 ### Proxy Target
 
@@ -601,11 +651,15 @@ Therefore, it cannot establish that refreshing a page causes higher rankings, mo
 
 ### Working Sample
 
-The final analysis uses a **10,000-row working sample** rather than the complete warehouse.
+The final analysis uses a **10,000-row working sample** rather than the complete 78.8M-row warehouse. The sample is shuffled before selection (69 unique clients); a larger or differently-seeded sample could shift the exact numbers reported here.
+
+### Class Imbalance
+
+The proxy target is imbalanced (~9.8% positive). This materially affects every model's behavior: an unweighted model can score high accuracy while catching none of the minority class, and correcting for imbalance trades precision for recall rather than improving both simultaneously. Any reader of this report should weigh precision and recall according to their own cost of a false positive vs. a false negative, not rely on accuracy alone.
 
 ### Validation
 
-Grouped-by-client validation is more conservative than a random row split for the intended unseen-client generalization question.
+Grouped-by-client validation is more conservative than a random row split for the intended unseen-client generalization question, and depends on the sample actually containing enough distinct clients (verified here: 69 in-sample, 14 in the test split) to be meaningful.
 
 However, it does not guarantee performance on future time periods, new populations, or different datasets.
 
@@ -637,72 +691,67 @@ Avoid causal claims about rankings or refresh outcomes.
 
 ---
 
-## 13. Final Findings
+## 14. Final Findings
 
-The capstone tested whether a shallow Decision Tree could improve content-opportunity scoring beyond a transparent Week-4 baseline.
+The capstone tested whether Decision Tree and Random Forest models — plain, class-weighted, and threshold-tuned — could improve content-opportunity scoring beyond a transparent Week-4 baseline, after a self-audit caught and fixed a target-leakage bug and an unshuffled-sampling bug in an earlier run.
 
-The experiment used the FlyRank ML Internship dataset, `fact_content_daily_performance`, a 10,000-row working sample, a proxy target based on average position and clicks, 12 audited historical search/analytics features, a Decision Tree with `max_depth=5`, `random_state=42`, grouped validation by `client_hash_id`, a 20% held-out test share, and a zero-client-overlap check.
+The experiment used the FlyRank ML Internship dataset, `fact_content_daily_performance`, a shuffled 10,000-row working sample (69 unique clients), a proxy target based on average position and clicks (9.8% positive), 12 audited historical search/analytics features excluded of all target-defining fields, four model variants, grouped validation by `client_hash_id` with a minimum-client-count guard, a 20% held-out test share (694 rows, 14 clients), and a zero-client-overlap check.
 
-The baseline and Decision Tree were evaluated on the same grouped test set.
+| Method | Accuracy | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Week-4 baseline rule | **98.99%** | **100.00%** | 72.00% | **83.72%** |
+| Decision Tree (plain) | 96.40% | 0.00% | 0.00% | 0.00% |
+| Decision Tree (balanced) | 87.03% | 21.74% | 100.00% | 35.71% |
+| Random Forest (balanced) | 87.75% | 22.73% | 100.00% | 37.04% |
+| Random Forest (tuned threshold) | — | 25.50% | 100.00% | 40.74% |
 
-| Metric | Baseline | Decision Tree |
-|---|---:|---:|
-| Accuracy | **95.35%** | **57.62%** |
-| Precision | **100.00%** | **39.47%** |
-| Recall | **88.96%** | **1.23%** |
-| F1 | **94.16%** | **2.38%** |
-
-The Decision Tree confusion matrix showed:
+The best-F1 method's confusion matrix (Week-4 baseline):
 
 ```text
-True negatives:   1,659
-False positives:     23
-False negatives:  1,208
-True positives:      15
+True negatives:  669
+False positives:   0
+False negatives:   7
+True positives:   18
 ```
 
-The dominant error was false negatives.
-
-The Decision Tree did not provide a useful measured improvement over the transparent baseline.
+None of the learned models provided a useful measured F1 improvement over the transparent baseline. However, class weighting and threshold tuning did fully recover recall — a materially different, and more nuanced, finding than "the model failed."
 
 ---
 
-## 14. Overall Conclusion
+## 15. Overall Conclusion
 
-This project demonstrates an important machine-learning lesson:
+This project demonstrates two machine-learning lessons, reinforced by the audit process itself:
 
-> **A more complex model is not automatically a better model.**
+> **A more complex model is not automatically a better model** — and neither is a result that looks too good to be true. Both need to be checked before they're trusted.
 
-The audited Decision Tree was evaluated under a more conservative grouped validation design after removing fields that directly defined the proxy target.
+The audited models were evaluated under a conservative grouped validation design, on a properly shuffled sample, after removing fields that directly defined the proxy target and after addressing class imbalance through weighting and threshold tuning. Under that setup, the transparent baseline substantially outperformed every learned variant on F1, while the learned variants fully recovered recall at a real cost to precision.
 
-Under that setup, the transparent baseline substantially outperformed the Decision Tree.
-
-The capstone therefore does not present machine learning as a guaranteed improvement.
-
-Instead, it presents an honest workflow for:
+The capstone therefore does not present machine learning as a guaranteed improvement, and it does not present its own first-pass results as final. Instead, it presents an honest workflow for:
 
 1. defining a practical content question;
 2. establishing a transparent baseline;
-3. testing a machine-learning model;
-4. checking for leakage;
-5. validating using grouped data;
-6. inspecting errors;
-7. reporting negative results;
-8. converting observed signals into ranked human-review actions.
+3. testing machine-learning models, including weighted and threshold-tuned variants;
+4. checking for leakage — structurally and quantitatively;
+5. validating using grouped data, with a sanity check on group counts;
+6. catching and documenting an implausible result (100% accuracy) rather than reporting it;
+7. catching and documenting a flawed audit check rather than trusting it uncritically;
+8. inspecting errors;
+9. reporting a nuanced result — a negative finding on F1 alongside a positive finding on recall recovery;
+10. converting observed signals into ranked human-review actions.
 
 The final output is best described as:
 
-> **A public-safe, directional decision-support workflow for prioritizing content review using historical search and analytics signals.**
+> **A public-safe, directional decision-support workflow for prioritizing content review using historical search and analytics signals — built, audited, and corrected in the open.**
 
 It should not be interpreted as a causal model of search rankings or as an automated content-refresh system.
 
 ---
 
-## 15. Acknowledgments & Data Credit
+## 16. Acknowledgments & Data Credit
 
 Built on the **FlyRank ML Internship dataset**.
 
-The FlyRank dataset and internship learning environment provided the basis for this practical machine-learning workflow.
+The FlyRank dataset and internship learning environment provided the basis for this practical machine-learning workflow — including the review process that surfaced the leakage, sampling, and audit-calibration issues documented in Section 5.
 
 Data source:
 
@@ -712,7 +761,7 @@ This report credits the data source while maintaining public-safe handling of th
 
 ---
 
-## 16. Final Public-Safety Statement
+## 17. Final Public-Safety Statement
 
 This report contains only public-safe methodological descriptions and aggregated model results.
 
@@ -725,7 +774,7 @@ It does not expose:
 - raw client exports;
 - confidential business information.
 
-The findings are limited to the documented sample, proxy target, feature set, model, and validation design.
+The findings are limited to the documented sample, proxy target, feature set, models, and validation design.
 
 The correct interpretation is:
 
