@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -24,6 +25,7 @@ table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;borde
 ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-inside:avoid;margin-bottom:10px}
 .footer{padding:50px 0 80px;color:var(--muted)}.footer a{color:var(--green)}
 .small{font-size:13px;color:var(--muted)}code{background:#edf1ee;padding:2px 5px;border-radius:5px}
+.badge-fix{display:inline-block;background:#e8f2ed;color:var(--green);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;margin-left:8px;vertical-align:middle}
 @media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.two-col{columns:1}}
 @media(max-width:520px){.grid{grid-template-columns:1fr}.hero{padding-bottom:52px}.hero h1{font-size:2.7rem}}
 </style>
@@ -31,22 +33,22 @@ ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-ins
 <body>
 <header class="hero">
 <div class="container">
-<div class="topbar"><div class="brand">FLYRANK · ML CAPSTONE</div><div class="tag">Refresh / Content Opportunity Scoring</div></div>
-<div class="kicker">Search intelligence · transparent modeling · grouped validation</div>
+<div class="topbar"><div class="brand">FLYRANK · ML CAPSTONE</div><div class="tag">Refresh / Content Opportunity Scoring — Revised</div></div>
+<div class="kicker">Search intelligence · transparent modeling · grouped validation · audited for leakage</div>
 <h1>Which content should a reviewer inspect first?</h1>
-<p>A practical, public-safe study of whether historical search and analytics signals can support a ranked content-review queue — and whether a Decision Tree actually improves on a transparent Week-4 baseline.</p>
+<p>A practical, public-safe study of whether historical search and analytics signals can support a ranked content-review queue — and whether a Decision Tree or Random Forest actually improves on a transparent baseline, once sampling and leakage issues found during audit are fixed.</p>
 <div class="scope">Decision-support only · human review required · no causal claims</div>
 </div>
 </header>
 
 <nav class="nav"><div class="container">
-<a href="#abstract">Abstract</a><a href="#question">Question</a><a href="#data">Data</a><a href="#method">Method</a><a href="#results">Results</a><a href="#limits">Limits</a><a href="#actions">Actions</a><a href="#repro">Reproducibility</a>
+<a href="#abstract">Abstract</a><a href="#question">Question</a><a href="#data">Data</a><a href="#method">Method</a><a href="#audit">Audit trail</a><a href="#results">Results</a><a href="#limits">Limits</a><a href="#actions">Actions</a><a href="#repro">Reproducibility</a>
 </div></nav>
 
 <main>
 <section id="abstract"><div class="container">
-<div class="eyebrow">01 · Abstract</div><h2>A model should earn its complexity.</h2>
-<p class="lead">This study investigates whether historical search-performance signals can support content prioritization for potential refresh review. A transparent rule-based baseline was developed first, followed by an audited Decision Tree using historical search and analytics signals. The model was evaluated with grouped validation by client and compared with the baseline on the same held-out groups. The measured results favored the simple baseline: 95.35% accuracy and 94.16% F1 versus 57.62% accuracy and 2.38% F1 for the audited tree. The resulting action queue is therefore framed as directional decision-support for human review, not as evidence that a refresh will cause improved search performance.</p>
+<div class="eyebrow">01 · Abstract</div><h2>A model should earn its complexity — and its numbers should survive an audit.</h2>
+<p class="lead">This study investigates whether historical search-performance signals can support content prioritization for potential refresh review. A transparent rule-based baseline was developed first, followed by Decision Tree and Random Forest models trained on an audited, leakage-free feature set. A self-review of the pipeline caught two issues after initial results looked implausibly strong: an unshuffled data sample that collapsed the working set to a handful of clients, and a proxy target built from the same two fields the model was also given as inputs. Both were fixed and the pipeline was re-run. On the corrected, grouped, leakage-free evaluation, the transparent baseline still leads on F1 (83.7%) against class-weighted Decision Tree (35.7%), Random Forest (37.0%), and a probability-threshold-tuned Random Forest (40.7%) — though the weighted/tuned models do recover full recall, at a real cost to precision. The resulting action queue remains directional decision-support for human review, not evidence that a refresh will cause improved search performance.</p>
 </div></section>
 
 <section id="question"><div class="container">
@@ -54,65 +56,79 @@ ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-ins
 <div class="split"><div>
 <p class="lead">The selected capstone lane is <strong>Refresh / Content Opportunity Scoring</strong>.</p>
 <p>The practical decision is simple: <strong>which content items should a reviewer inspect first?</strong> The system is intentionally not asked to decide whether a page must be refreshed, rewritten, deleted, or expected to gain traffic.</p>
-</div><div class="panel"><strong>What success means</strong><ul><li>Transparent assumptions</li><li>Leakage-controlled features</li><li>Grouped validation</li><li>Comparable baseline</li><li>Human-readable actions</li></ul></div></div>
+</div><div class="panel"><strong>What success means</strong><ul><li>Transparent assumptions</li><li>Leakage-controlled features, audited quantitatively</li><li>Grouped validation, sanity-checked for group count</li><li>Comparable baseline</li><li>Human-readable actions</li></ul></div></div>
 </div></section>
 
 <section id="data"><div class="container">
 <div class="eyebrow">03 · Data</div><h2>Historical search + analytics signals</h2>
 <div class="grid">
-<div class="card"><div class="num">10,000</div><div class="label">working sample rows</div></div>
+<div class="card"><div class="num">10,000</div><div class="label">working sample rows (shuffled)</div></div>
+<div class="card"><div class="num">69</div><div class="label">unique clients in sample</div></div>
 <div class="card"><div class="num">12</div><div class="label">audited model features</div></div>
-<div class="card"><div class="num">20%</div><div class="label">held-out grouped test share</div></div>
 <div class="card"><div class="num">0</div><div class="label">client overlap in split</div></div>
 </div>
 <div class="split">
-<div><p>The capstone uses the FlyRank ML Internship dataset and the <code>fact_content_daily_performance</code> workflow. The feature set includes GSC impressions and analytics measures such as pageviews, sessions, users, engaged sessions, channel sessions, AI sessions, and scroll events.</p><p>The working sample is explicitly described in the notebook as 10,000 rows rather than the complete warehouse.</p></div>
-<div class="panel"><strong>Public-safe exclusions</strong><div class="pills"><span class="pill">client identifier</span><span class="pill">content identifier</span><span class="pill">report date</span><span class="pill">target</span><span class="pill">GSC clicks</span><span class="pill">average position</span></div></div>
+<div><p>The capstone uses the FlyRank ML Internship warehouse and the <code>fact_content_daily_performance</code> table (78.8M rows). The feature set includes GSC impressions and analytics measures such as pageviews, sessions, users, engaged sessions, channel sessions, AI sessions, and scroll events.</p><p>The working sample is 10,000 rows drawn with <code>.shuffle(seed=42)</code> before selection, which surfaces 69 distinct clients — an earlier unshuffled draw had silently collapsed the sample to roughly 3 clients (see the audit trail below).</p></div>
+<div class="panel"><strong>Public-safe exclusions</strong><div class="pills"><span class="pill">client identifier</span><span class="pill">content identifier</span><span class="pill">report date</span><span class="pill">target</span><span class="pill">gsc_clicks</span><span class="pill">gsc_avg_position</span></div></div>
 </div>
-<div class="warning"><strong>Date-window note:</strong> the uploaded capstone displays a sample date (2025-01-27), but does not expose a verified full date-window summary. This paper deliberately does not invent an end date. The notebook remains the source of truth for the exact run configuration.</div>
+<div class="warning"><strong>Target definition:</strong> the proxy target flags rows where <code>gsc_avg_position &gt; 20</code> and <code>gsc_clicks &lt; 5</code>. In the shuffled 10,000-row sample this produces 982 positive rows (9.8%) against 9,018 negative rows (90.2%) — a real, moderate class imbalance that shaped every result below.</div>
 </div></section>
 
 <section id="method"><div class="container">
-<div class="eyebrow">04 · Methodology</div><h2>Baseline first. Model second. Audit both.</h2>
+<div class="eyebrow">04 · Methodology</div><h2>Baseline first. Model second. Audit everything, including the audit.</h2>
 <div class="split">
-<div class="panel"><h3>Proxy target</h3><p>The Week-5 proxy marks observations where average position is above 20 and clicks are below 5. This is a constructed proxy, not a human-verified “needs refresh” label.</p><h3>Audited model</h3><p>A Decision Tree classifier with <code>max_depth=5</code> uses 12 historical search/analytics features.</p></div>
-<div class="panel"><h3>Grouped validation</h3><p><code>GroupShuffleSplit</code> holds out 20% of client groups. The notebook checks client overlap and uses the same held-out groups for baseline and model comparison.</p><h3>Leakage control</h3><p>The two variables that directly construct the proxy target — GSC clicks and average position — are excluded from the audited model.</p></div>
+<div class="panel"><h3>Proxy target</h3><p>Rows where average position is above 20 and clicks are below 5. This is a constructed proxy, not a human-verified "needs refresh" label.</p><h3>Models compared</h3><p>Week-4 baseline rule, plain Decision Tree (<code>max_depth=5</code>), class-weighted Decision Tree, class-weighted Random Forest, and a Random Forest with its decision threshold tuned to maximize F1.</p></div>
+<div class="panel"><h3>Grouped validation</h3><p><code>GroupShuffleSplit</code> holds out 20% of client groups (55 train clients / 14 test clients, 0 overlap). A hard assertion blocks the run if either side falls below 5 clients.</p><h3>Leakage control</h3><p>The two variables that directly construct the proxy target — <code>gsc_clicks</code> and <code>gsc_avg_position</code> — are excluded from every model's feature set <em>by construction</em>: a single variable defines them once and both the target formula and the feature filter read from it, so the two can't drift out of sync.</p></div>
 </div>
-<div class="callout"><strong>Why the audit matters:</strong> allowing a model to see variables that directly define its target can make performance look stronger than the underlying predictive evidence. The capstone explicitly corrects for that issue.</div>
+<div class="callout"><strong>Why the audit matters:</strong> allowing a model to see variables that directly define its target can make performance look stronger than the underlying predictive evidence — an earlier run of this exact pipeline scored 100% accuracy for this reason before the bug was caught and fixed.</div>
+</div></section>
+
+<section id="audit"><div class="container">
+<div class="eyebrow">05 · Audit trail</div><h2>What was wrong, and how it was found.</h2>
+<p class="lead">In the interest of an honest, reproducible capstone, the two issues that inflated earlier results are documented here rather than quietly dropped.</p>
+<table><thead><tr><th>Issue</th><th>Symptom</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td><strong>Target leakage</strong></td><td><code>gsc_clicks</code> / <code>gsc_avg_position</code> were used to build the target <em>and</em> left in the feature set — Decision Tree scored a suspicious 100% accuracy, with feature importance showing <code>gsc_avg_position</code> at 1.0 and every other feature at 0.0.</td><td>Both fields are now excluded from the feature set by construction, driven from the same variable that defines the target formula.</td></tr>
+<tr><td><strong>Unshuffled sampling</strong></td><td><code>.select(range(10000))</code> without shuffling drew the sample from the front of storage order, collapsing it to ~3 unique clients — the grouped test set ended up with a single client, making "grouped validation" close to meaningless.</td><td>Data is now shuffled (<code>seed=42</code>) before sampling, and the pipeline asserts a minimum client count (≥20 in-sample, ≥5 per split side) before any metric is trusted.</td></tr>
+<tr><td><strong>Miscalibrated leakage trip-wire</strong></td><td>A quantitative single-feature leakage check flagged every feature as "suspicious" at once — turned out to be an artifact of class imbalance (a depth-3 tree defaults to predicting the majority class for any feature, matching the 90.2% base rate exactly).</td><td>The check now compares each feature against the majority-class baseline and additionally requires non-trivial recall before flagging a feature as leakage.</td></tr>
+</tbody></table>
 </div></section>
 
 <section id="results"><div class="container">
-<div class="eyebrow">05 · Results</div><h2>The transparent baseline wins.</h2>
+<div class="eyebrow">06 · Results</div><h2>The transparent baseline still wins on F1 — but recall tells a fuller story.</h2>
 <div class="grid">
-<div class="card"><div class="num metric-good">95.35%</div><div class="label">baseline accuracy</div></div>
-<div class="card"><div class="num metric-low">57.62%</div><div class="label">audited tree accuracy</div></div>
-<div class="card"><div class="num metric-good">94.16%</div><div class="label">baseline F1</div></div>
-<div class="card"><div class="num metric-low">2.38%</div><div class="label">audited tree F1</div></div>
+<div class="card"><div class="num metric-good">83.7%</div><div class="label">baseline F1 (best overall)</div></div>
+<div class="card"><div class="num metric-low">40.7%</div><div class="label">best model F1 (tuned Random Forest)</div></div>
+<div class="card"><div class="num metric-good">72%</div><div class="label">baseline recall</div></div>
+<div class="card"><div class="num metric-good">100%</div><div class="label">balanced-model recall (all three)</div></div>
 </div>
-<div class="figure"><img src="work/figures/model_comparison.svg" alt="Grouped test comparison of baseline and audited Decision Tree"></div>
 <table><thead><tr><th>Method</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead>
-<tbody><tr><td>Week 4 baseline rule</td><td>95.35%</td><td>100.00%</td><td>88.96%</td><td>94.16%</td></tr>
-<tr><td>Audited Decision Tree</td><td>57.62%</td><td>39.47%</td><td>1.23%</td><td>2.38%</td></tr></tbody></table>
-<h3>Where the tree failed</h3>
-<div class="figure"><img src="work/figures/confusion_matrix.svg" alt="Confusion matrix for the audited Decision Tree"></div>
-<p class="lead">The held-out confusion matrix contains 1,208 false negatives and only 15 true positives. That error pattern is consistent with the measured 1.23% recall and 2.38% F1: the tree missed most proxy-positive cases.</p>
-<div class="callout"><strong>Interpretation:</strong> under this grouped validation design, the extra model complexity did not improve the tested proxy task. The transparent baseline remains the stronger measured benchmark.</div>
+<tbody>
+<tr><td>Week-4 baseline rule</td><td>98.99%</td><td>100.0%</td><td>72.0%</td><td><strong>83.7%</strong></td></tr>
+<tr><td>Decision Tree (plain)</td><td>96.40%</td><td>0.0%</td><td>0.0%</td><td>0.0%</td></tr>
+<tr><td>Decision Tree (class-weighted)</td><td>87.03%</td><td>21.7%</td><td>100.0%</td><td>35.7%</td></tr>
+<tr><td>Random Forest (class-weighted)</td><td>87.75%</td><td>22.7%</td><td>100.0%</td><td>37.0%</td></tr>
+<tr><td>Random Forest (tuned threshold = 0.679)</td><td>—</td><td>25.5%</td><td>100.0%</td><td>40.7%</td></tr>
+</tbody></table>
+<h3>Reading the pattern</h3>
+<p class="lead">An unweighted Decision Tree simply predicted the majority class for every row, producing 0% recall despite 96% accuracy — a textbook symptom of an unaddressed 90/10 class imbalance, not a leakage bug. Adding <code>class_weight="balanced"</code>, and separately tuning the classification threshold on Random Forest's predicted probabilities, both fully recovered recall to 100% — every actual refresh-candidate page was caught. The cost was precision: only ~23–26% of flagged pages were true positives, versus 100% for the simple rule. On F1, which balances both, the rule-based baseline remains ahead.</p>
+<div class="callout"><strong>Interpretation:</strong> the audited features carry real but limited independent signal once <code>gsc_clicks</code>/<code>gsc_avg_position</code> are removed — enough to fully recover the minority class with the right weighting, not enough to do so without a heavy precision cost. Which model to prefer depends on whether missing a refresh candidate (favor the weighted models) or wasting reviewer time on false alarms (favor the baseline) is the costlier mistake for the team.</div>
 </div></section>
 
 <section id="limits"><div class="container">
-<div class="eyebrow">06 · Limitations</div><h2>What this study does — and does not — show.</h2>
+<div class="eyebrow">07 · Limitations</div><h2>What this study does — and does not — show.</h2>
 <div class="split">
-<div><h3>Supported</h3><ul><li>The baseline and tree can be compared on the same grouped test set.</li><li>The audited tree performed materially below the baseline in this experiment.</li><li>The queue can be used as directional review prioritization.</li><li>Leakage risks from target-defining fields were explicitly addressed.</li></ul></div>
+<div><h3>Supported</h3><ul><li>The baseline and four model variants can be compared on the same grouped, leakage-audited test set.</li><li>Class weighting and threshold tuning materially change the precision/recall trade-off versus an unweighted tree.</li><li>The queue can be used as directional review prioritization.</li><li>Leakage and sampling risks were caught, documented, and corrected rather than silently fixed.</li></ul></div>
 <div><h3>Not supported</h3><ul><li>A claim that refreshing content will cause better rankings.</li><li>A claim about Google's ranking algorithm.</li><li>A claim that the queue predicts refresh success.</li><li>Automatic publishing, rewriting, deletion, or pruning.</li></ul></div>
 </div>
 <div class="warning"><strong>Honest framing:</strong> words such as <em>observed</em>, <em>measured</em>, <em>directional</em>, <em>associated</em>, and <em>decision-support</em> are preferred throughout this artifact.</div>
 </div></section>
 
 <section id="actions"><div class="container">
-<div class="eyebrow">07 · Ranked action playbook</div><h2>Use the queue to focus human attention.</h2>
+<div class="eyebrow">08 · Ranked action playbook</div><h2>Use the queue to focus human attention.</h2>
 <div class="split">
 <div>
-<p class="lead">The capstone exports a ranked queue with an opportunity score, action label, and reason code. The top-ranked observations shown in the notebook use <strong>REVIEW_REFRESH</strong> with the reason code <strong>LOW_CLICKS_POOR_POSITION</strong>.</p>
+<p class="lead">The capstone exports a ranked queue with an opportunity score, action label, and reason code, built from the same audited signals as the models above.</p>
 <table><thead><tr><th>Action</th><th>Reason code</th><th>Use</th></tr></thead>
 <tbody><tr><td><strong>REVIEW_REFRESH</strong></td><td>LOW_CLICKS_POOR_POSITION</td><td>Inspect first</td></tr>
 <tr><td><strong>MONITOR</strong></td><td>MONITOR_SIGNAL</td><td>Watch for context</td></tr>
@@ -124,17 +140,18 @@ ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-ins
 </div></section>
 
 <section id="repro"><div class="container">
-<div class="eyebrow">08 · Reproducibility</div><h2>A paper backed by a notebook trail.</h2>
+<div class="eyebrow">09 · Reproducibility</div><h2>A paper backed by a corrected notebook trail.</h2>
 <div class="panel">
-<p>The capstone sits on the weekly workflow:</p>
+<p>The capstone sits on the weekly workflow, with the following notebooks revised after the audit:</p>
 <ul class="two-col">
-<li><code>w04_baseline_score.ipynb</code> — transparent baseline</li>
-<li><code>w05_model.ipynb</code> — initial model comparison</li>
-<li><code>w06_validation_audit.ipynb</code> — validation + leakage audit</li>
-<li><code>w07_action_playbook.ipynb</code> — action playbook</li>
-<li><code>capstone.ipynb</code> — final research workflow</li>
+<li><code>w03_feature_leakage_check.ipynb</code> — leakage check now conditional on the target definition, not a one-time judgement</li>
+<li><code>w04_baseline_score.ipynb</code> — transparent baseline (unchanged)</li>
+<li><code>w05_model.ipynb</code> — target-defining fields excluded from features programmatically</li>
+<li><code>w06_validation_audit.ipynb</code> — shuffled sampling, client-count guard, corrected quantitative leakage trip-wire</li>
+<li><code>w07_action_playbook.ipynb</code> — action playbook (already shuffled correctly)</li>
+<li><code>capstone.ipynb</code> — final workflow: shuffled sample (69 clients), leakage-free features, class-weighted models, threshold tuning</li>
 </ul>
-<p>The capstone also regenerates <code>work/outputs/capstone_ranked_action_queue.csv</code> and <code>work/outputs/capstone_metrics.json</code>, and creates reusable figures under <code>work/figures/</code>.</p>
+<p>The capstone regenerates <code>work/outputs/capstone_ranked_action_queue.csv</code> and <code>work/outputs/capstone_metrics.json</code>, and creates reusable figures under <code>work/figures/</code>.</p>
 </div>
 </div></section>
 </main>
@@ -142,9 +159,9 @@ ol,ul{padding-left:22px}.two-col{columns:2;column-gap:40px}.two-col li{break-ins
 <footer class="footer"><div class="container">
 <div class="eyebrow">Acknowledgments & data credit</div>
 <h2>Built on the FlyRank ML Internship dataset.</h2>
-<p>Thank you to the FlyRank mentors, team, and learning environment for providing a practical setting for working with search and analytics data.</p>
+<p>Thank you to the FlyRank mentors, team, and learning environment for providing a practical setting for working with search and analytics data — and for a review process that surfaced the leakage and sampling issues documented above.</p>
 <p><a href="https://flyrank.ai" rel="noopener noreferrer">FlyRank</a> · Machine Learning Internship Capstone</p>
-<p class="small">This research artifact reports measured results from a specific proxy task and validation design. It is intended for transparent learning and decision-support, not production automation or causal inference.</p>
+<p class="small">This research artifact reports measured results from a specific proxy task and validation design, including a documented self-audit that corrected two methodological issues. It is intended for transparent learning and decision-support, not production automation or causal inference.</p>
 </div></footer>
 </body>
 </html>
